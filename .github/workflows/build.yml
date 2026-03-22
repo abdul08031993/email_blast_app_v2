@@ -1,0 +1,32 @@
+name: Build Email Blast Pro
+on:
+  push:
+    tags:
+      - 'v*' # Akan berjalan otomatis jika kamu buat tag seperti v1.0.0
+
+jobs:
+  release:
+    runs-on: windows-latest # Kita pinjam server Windows milik GitHub biar hasilnya asli .exe
+
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v3
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Electron App
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Biar otomatis upload ke GitHub Release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Email-Blast-Pro-Windows
+          path: dist/*.exe
