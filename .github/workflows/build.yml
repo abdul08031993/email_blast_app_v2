@@ -3,17 +3,18 @@ name: Build & Release Email Blast Pro
 on:
   push:
     tags:
-      - 'v*'          # Trigger saat push tag seperti v1.0.0, v1.2.3
-  workflow_dispatch:   # Bisa juga dijalankan manual dari GitHub UI
+      - 'v*'          # Trigger saat push tag seperti v1.0.0
+  workflow_dispatch:   # Bisa dijalankan manual dari tab Actions
 
 permissions:
-  contents: write      # Diperlukan untuk membuat Release dan upload aset
+  contents: write
 
 jobs:
   # ===================== BUILD WINDOWS =====================
   build-windows:
     name: 🪟 Windows Build
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
@@ -26,6 +27,8 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
 
       - name: Build Windows installer (.exe)
         run: npm run dist-win
@@ -43,6 +46,7 @@ jobs:
   build-macos:
     name: 🍎 macOS Build
     runs-on: macos-latest
+    timeout-minutes: 40  # Maksimal 40 menit agar tidak menyedot kuota
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
@@ -55,14 +59,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
 
       - name: Build macOS (.dmg)
         run: npm run dist-mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Jika punya Apple Developer certificate, tambahkan secrets berikut:
-          # CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
 
       - name: Upload artifact macOS
         uses: actions/upload-artifact@v4
@@ -75,6 +78,7 @@ jobs:
   build-linux:
     name: 🐧 Linux Build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
@@ -88,10 +92,12 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2
+          sudo apt-get install -y libgbm1 libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2t64
 
       - name: Install dependencies
         run: npm ci
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
 
       - name: Build Linux (.AppImage & .deb)
         run: npm run dist-linux
@@ -117,6 +123,7 @@ jobs:
     name: 🚀 Buat GitHub Release
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
+    # Release hanya dibuat jika dipicu oleh TAG (v1.0.0 dsb)
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
@@ -132,19 +139,11 @@ jobs:
           name: "Email Blast Pro ${{ github.ref_name }}"
           body: |
             ## 📧 Email Blast Pro ${{ github.ref_name }}
-
-            ### Download sesuai sistem operasi kamu:
-            | OS | File |
-            |---|---|
-            | 🪟 Windows | `*-Setup.exe` |
-            | 🍎 macOS | `*.dmg` |
-            | 🐧 Linux | `*.AppImage` atau `*.deb` |
-
-            ### Cara Install:
-            - **Windows**: Jalankan file `.exe`, ikuti wizard instalasi
-            - **macOS**: Buka file `.dmg`, drag ke Applications
-            - **Linux AppImage**: `chmod +x *.AppImage && ./Email-Blast-Pro*.AppImage`
-            - **Linux DEB**: `sudo dpkg -i *.deb`
+            
+            ### Download installer:
+            - 🪟 **Windows**: `*-Setup.exe`
+            - 🍎 **macOS**: `*.dmg`
+            - 🐧 **Linux**: `*.AppImage` atau `*.deb`
           files: release-files/**/*
           draft: false
           prerelease: false
