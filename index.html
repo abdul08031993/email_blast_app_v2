@@ -387,13 +387,16 @@
           <div class="scraper-options">
             <div class="scraper-tabs">
               <button class="scraper-tab active" onclick="setScrapeMode('website')" id="tab-website">
-                <i class="fas fa-globe"></i> Website/URL
+                <i class="fas fa-globe"></i> Website
               </button>
               <button class="scraper-tab" onclick="setScrapeMode('maps')" id="tab-maps">
                 <i class="fas fa-map-marker-alt"></i> Google Maps
               </button>
               <button class="scraper-tab" onclick="setScrapeMode('multi')" id="tab-multi">
                 <i class="fas fa-list"></i> Multi URL
+              </button>
+              <button class="scraper-tab" onclick="setScrapeMode('social')" id="tab-social">
+                <i class="fas fa-users"></i> Sosial Media
               </button>
             </div>
 
@@ -410,15 +413,27 @@
 
             <div id="scrape-maps-mode" class="scrape-mode" style="display:none">
               <div class="form-group">
-                <label>Kata Kunci Bisnis</label>
+                <label><i class="fas fa-map-marker-alt"></i> Kata Kunci / Nama Daerah</label>
                 <div class="url-input-wrap">
-                  <input type="text" id="scrape-maps-keyword" placeholder="Contoh: restoran jakarta, hotel bandung..." class="form-input">
-                  <button class="btn-primary" onclick="scrapeMaps()"><i class="fas fa-map-marker-alt"></i> Scrape Maps</button>
+                  <input type="text" id="scrape-maps-keyword" placeholder="Contoh: dokter gigi jakarta selatan, hotel surabaya..." class="form-input">
+                  <button class="btn-primary" onclick="scrapeMaps()"><i class="fas fa-map-marker-alt"></i> Scrape</button>
+                </div>
+                <small>Gunakan nama daerah + kategori bisnis. Contoh: <b>toko baju bandung</b>, <b>cafe jakarta barat</b></small>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Jumlah Bisnis Maks</label>
+                  <select id="scrape-maps-max" class="form-input form-select">
+                    <option value="15">15 bisnis (cepat)</option>
+                    <option value="30" selected>30 bisnis</option>
+                    <option value="50">50 bisnis</option>
+                    <option value="100">100 bisnis (lama)</option>
+                  </select>
                 </div>
               </div>
               <div class="info-box">
                 <i class="fas fa-info-circle"></i>
-                <p>Fitur Google Maps menggabungkan pencarian bisnis. Anda bisa scrape website bisnis yang ditemukan untuk mendapatkan email mereka.</p>
+                <p>Scraper akan membuka profil setiap bisnis, mengambil website-nya, lalu mencari email di website tersebut. Proses bisa memakan cukup waktu.</p>
               </div>
             </div>
 
@@ -430,9 +445,63 @@
               </div>
             </div>
 
+            <div id="scrape-social-mode" class="scrape-mode" style="display:none">
+              <div class="form-group">
+                <label>Platform Media Sosial</label>
+                <div class="social-platform-grid" id="social-platform-grid">
+                  <div class="social-platform-btn active" data-platform="linkedin" onclick="selectSocialPlatform('linkedin')">
+                    <i class="fab fa-linkedin" style="color:#0077b5"></i> LinkedIn
+                  </div>
+                  <div class="social-platform-btn" data-platform="facebook" onclick="selectSocialPlatform('facebook')">
+                    <i class="fab fa-facebook" style="color:#1877f2"></i> Facebook
+                  </div>
+                  <div class="social-platform-btn" data-platform="instagram" onclick="selectSocialPlatform('instagram')">
+                    <i class="fab fa-instagram" style="color:#e4405f"></i> Instagram
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Kata Kunci Pencarian</label>
+                <input type="text" id="social-keyword" placeholder="Contoh: marketing manager jakarta, owner cafe bandung..." class="form-input">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Jumlah Halaman</label>
+                  <select id="social-max-pages" class="form-input form-select">
+                    <option value="3">3 halaman</option>
+                    <option value="5" selected>5 halaman</option>
+                    <option value="10">10 halaman</option>
+                  </select>
+                </div>
+              </div>
+              <div class="info-box" style="background:rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.25);">
+                <i class="fas fa-shield-alt" style="color:#3b82f6"></i>
+                <p><b>Langkah:</b> Klik <b>Buka Browser Login</b> → Login akun di jendela yang muncul → Kembali ke sini → Klik <b>Mulai Scraping</b>.</p>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn-secondary" id="btn-social-open" onclick="socialOpenBrowser()">
+                  <i class="fas fa-external-link-alt"></i> Buka Browser Login
+                </button>
+                <button class="btn-primary" id="btn-social-scrape" onclick="socialScrape()">
+                  <i class="fas fa-spider"></i> Mulai Scraping
+                </button>
+                <button class="btn-secondary" onclick="socialCloseBrowser()">
+                  <i class="fas fa-times"></i> Tutup Browser
+                </button>
+              </div>
+            </div>
+
             <div class="scrape-status">
-              <div id="scrape-log" class="scrape-log">
-                <div class="log-placeholder">Status scraping akan muncul di sini...</div>
+              <div class="scraper-status-bar" id="scrape-status-bar">
+                <div class="spinner-sm"></div>
+                <span class="status-text" id="scrape-status-text">Siap untuk scraping...</span>
+                <span class="scrape-count-badge" id="scrape-live-count">0 email</span>
+                <button class="btn-stop-scrape" id="btn-stop-scrape" onclick="stopScraping()">
+                  <i class="fas fa-stop"></i> Stop
+                </button>
+              </div>
+              <div id="scrape-log" class="scrape-log" style="margin-top:8px">
+                <div class="log-placeholder">Log scraping akan muncul di sini...</div>
               </div>
             </div>
           </div>
@@ -542,11 +611,46 @@
           <div class="settings-section">
             <h3>Tampilan</h3>
             <div class="form-group">
-              <label>Tema</label>
-              <select id="setting-theme" class="form-input form-select">
-                <option value="dark">Dark (Default)</option>
-                <option value="light">Light</option>
-              </select>
+              <label>Mode Tampilan</label>
+              <div class="theme-mode-row">
+                <button class="theme-mode-btn active" id="btn-mode-dark" onclick="setThemeMode('dark')">
+                  <i class="fas fa-moon"></i> Dark
+                </button>
+                <button class="theme-mode-btn" id="btn-mode-light" onclick="setThemeMode('light')">
+                  <i class="fas fa-sun"></i> Light
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Warna Aksen</label>
+              <div class="theme-picker" id="accent-picker">
+                <div class="theme-swatch active" data-accent="purple" title="Ungu (Default)"
+                     style="background: linear-gradient(135deg,#7c3aed,#9d4edd)"
+                     onclick="setAccentColor('purple')"></div>
+                <div class="theme-swatch" data-accent="blue" title="Biru"
+                     style="background: linear-gradient(135deg,#2563eb,#3b82f6)"
+                     onclick="setAccentColor('blue')"></div>
+                <div class="theme-swatch" data-accent="green" title="Hijau"
+                     style="background: linear-gradient(135deg,#059669,#10b981)"
+                     onclick="setAccentColor('green')"></div>
+                <div class="theme-swatch" data-accent="orange" title="Oranye"
+                     style="background: linear-gradient(135deg,#d97706,#f59e0b)"
+                     onclick="setAccentColor('orange')"></div>
+                <div class="theme-swatch" data-accent="pink" title="Pink"
+                     style="background: linear-gradient(135deg,#db2777,#ec4899)"
+                     onclick="setAccentColor('pink')"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section license-section" id="license-section">
+            <h3><i class="fas fa-shield-alt"></i> Status Lisensi</h3>
+
+            <div class="license-status-card" id="license-card">
+              <!-- Diisi oleh JS -->
+              <div style="text-align:center; padding:20px; color:var(--text-muted);">
+                <i class="fas fa-circle-notch fa-spin"></i> Memuat...
+              </div>
             </div>
           </div>
 

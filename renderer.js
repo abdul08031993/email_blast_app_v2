@@ -4,17 +4,23 @@ let state = {
   recipients: [],
   scrapedEmails: [],
   history: [],
-  settings: { defaultDelay: 3 },
+  settings: { defaultDelay: 3, themeMode: 'dark', accentColor: 'purple' },
   selectedAccounts: [],
   isBlasting: false,
   isHtmlMode: false,
   blastStats: { sent: 0, failed: 0, total: 0 },
   scrapeMode: 'website',
+  isScraping: false,
+  stopScrape: false,
+  socialPlatform: 'linkedin',
   isActivated: false
 };
 
 // ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', async () => {
+  // Apply saved theme sebelum apapun (cegah flash)
+  applyThemeFromStorage();
+
   // 1. Cek Status Aktivasi Terlebih Dahulu
   const status = await window.electronAPI.checkActivationStatus();
   state.isActivated = status.isActivated;
@@ -40,6 +46,43 @@ async function loadData() {
   renderHistory();
   updateBlastAccountSelector();
   loadSettings();
+}
+
+// ===================== THEME SYSTEM =====================
+function applyThemeFromStorage() {
+  const mode   = localStorage.getItem('themeMode')   || 'dark';
+  const accent = localStorage.getItem('accentColor') || 'purple';
+  applyThemeMode(mode, false);
+  applyAccentColor(accent, false);
+}
+
+function setThemeMode(mode) {
+  applyThemeMode(mode, true);
+  localStorage.setItem('themeMode', mode);
+}
+
+function applyThemeMode(mode, updateUI = true) {
+  document.body.classList.toggle('theme-light', mode === 'light');
+  if (updateUI) {
+    document.getElementById('btn-mode-dark')?.classList.toggle('active', mode === 'dark');
+    document.getElementById('btn-mode-light')?.classList.toggle('active', mode === 'light');
+  }
+}
+
+function setAccentColor(accent) {
+  applyAccentColor(accent, true);
+  localStorage.setItem('accentColor', accent);
+}
+
+function applyAccentColor(accent, updateUI = true) {
+  const classes = ['accent-purple','accent-blue','accent-green','accent-orange','accent-pink'];
+  document.body.classList.remove(...classes);
+  document.body.classList.add(`accent-${accent}`);
+  if (updateUI) {
+    document.querySelectorAll('.theme-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.accent === accent);
+    });
+  }
 }
 
 // ===================== LISENSI & AKTIVASI =====================
@@ -87,11 +130,9 @@ function navigateTo(page) {
   const navItem = document.querySelector(`[data-page="${page}"]`);
   if (navItem) navItem.classList.add('active');
   
-  if (page === 'blast') {
-    updateBlastAccountSelector();
-    updateBlastRecipientCount();
-  }
+  if (page === 'blast')     { updateBlastAccountSelector(); updateBlastRecipientCount(); }
   if (page === 'dashboard') updateDashboard();
+  if (page === 'settings')  { loadSettings(); loadLicenseInfo(); }
 }
 
 // ===================== DASHBOARD =====================
@@ -124,6 +165,7 @@ function setupListeners() {
   window.electronAPI.onBlastComplete(handleBlastComplete);
   window.electronAPI.onBlastStopped(handleBlastStopped);
   window.electronAPI.onScrapeProgress(handleScrapeProgress);
+  window.electronAPI.onScrapeLead(handleScrapeLead);
 }
 
 // ===================== ACCOUNTS =====================
@@ -372,36 +414,166 @@ function setScrapeMode(mode) {
 
 function handleScrapeProgress(data) {
   addScrapeLog(data.message);
+  // Update live status bar
+  const bar = document.getElementById('scrape-status-bar');
+  const txt = document.getElementById('scrape-status-text');
+  const cnt = document.getElementById('scrape-live-count');
+  if (bar) bar.classList.add('running');
+  if (txt) txt.textContent = data.message;
+  if (cnt) cnt.textContent = `${data.count || state.scrapedEmails.length} email`;
+}
+
+function setScrapeIdle(msg = 'Selesai') {
+  const bar = document.getElementById('scrape-status-bar');
+  const txt = document.getElementById('scrape-status-text');
+  if (bar) bar.classList.remove('running');
+  if (txt) txt.textContent = msg;
+  state.isScraping = false;
+}
+
+function stopScraping() {
+  state.stopScrape = true;
+  setScrapeIdle('Dihentikan oleh pengguna');
+  showToast('Scraping dihentikan', 'warning');
 }
 
 async function scrapeWebsite() {
   const url = document.getElementById('scrape-url').value.trim();
   if (!url) { showToast('Masukkan URL website', 'warning'); return; }
+  if (state.isScraping) { showToast('Scraping sedang berjalan', 'warning'); return; }
   
+  state.isScraping = true;
+  state.stopScrape = false;
+  document.getElementById('scrape-status-bar').classList.add('running');
+  document.getElementById('scrape-status-text').textContent = `Memulai: ${url}`;
   addScrapeLog(`Memulai scraping: ${url}...`);
+  
   const result = await window.electronAPI.scrapeWebsite(url);
   
   if (result.success) {
     addScrapeResults(result.emails);
+    document.getElementById('scrape-live-count').textContent = `${result.emails.length} email`;
     showToast(`Ditemukan ${result.emails.length} email`, 'success');
   } else {
     showToast('Gagal scraping: ' + result.message, 'error');
   }
+  setScrapeIdle(result.success ? `Selesai – ${result.emails.length} email ditemukan` : 'Gagal scraping');
 }
 
 async function scrapeMaps() {
   const keyword = document.getElementById('scrape-maps-keyword').value.trim();
   if (!keyword) { showToast('Masukkan kata kunci', 'warning'); return; }
+  if (state.isScraping) { showToast('Scraping sedang berjalan', 'warning'); return; }
   
-  addScrapeLog(`Mencari "${keyword}" di Google Maps...`);
-  const result = await window.electronAPI.scrapeGoogleMaps(keyword);
+  const maxResults = parseInt(document.getElementById('scrape-maps-max')?.value || 30);
+  state.isScraping = true;
+  state.stopScrape = false;
+  document.getElementById('scrape-status-bar').classList.add('running');
+  document.getElementById('scrape-status-text').textContent = `Mencari "${keyword}" di Google Maps...`;
+  addScrapeLog(`Mencari "${keyword}" di Google Maps (maks ${maxResults} bisnis)...`);
+  
+  const result = await window.electronAPI.scrapeGoogleMaps({ keyword, maxResults });
   
   if (result.success) {
     addScrapeResults(result.emails);
-    showToast(`Ditemukan ${result.emails.length} email`, 'success');
+    document.getElementById('scrape-live-count').textContent = `${result.emails.length} email`;
+    showToast(`Ditemukan ${result.emails.length} email dari ${result.leads?.length || 0} bisnis`, 'success');
+    setScrapeIdle(`Selesai Maps – ${result.emails.length} email dari ${result.leads?.length || 0} bisnis`);
   } else {
     showToast('Gagal: ' + result.message, 'error');
+    setScrapeIdle('Gagal scraping');
   }
+}
+
+// ===================== SOCIAL MEDIA SCRAPER =====================
+function selectSocialPlatform(platform) {
+  state.socialPlatform = platform;
+  document.querySelectorAll('.social-platform-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.platform === platform);
+  });
+}
+
+async function socialOpenBrowser() {
+  showToast('Membuka browser...', 'info');
+  const result = await window.electronAPI.socialOpenBrowser({ platform: state.socialPlatform });
+  if (result.success) {
+    showToast(result.message, 'success');
+    addScrapeLog(`Browser ${state.socialPlatform} dibuka. Silakan login lalu klik Mulai Scraping.`);
+  } else {
+    showToast('Gagal buka browser: ' + result.message, 'error');
+  }
+}
+
+async function socialScrape() {
+  const keyword = document.getElementById('social-keyword').value.trim();
+  if (!keyword) { showToast('Masukkan kata kunci pencarian', 'warning'); return; }
+  if (state.isScraping) { showToast('Scraping sedang berjalan', 'warning'); return; }
+
+  const maxPages = parseInt(document.getElementById('social-max-pages')?.value || 5);
+  state.isScraping = true;
+  state.stopScrape = false;
+  document.getElementById('scrape-status-bar').classList.add('running');
+  document.getElementById('scrape-status-text').textContent = `Scraping ${state.socialPlatform}: "${keyword}"...`;
+  addScrapeLog(`Mulai scraping ${state.socialPlatform} dengan keyword "${keyword}"...`);
+
+  const result = await window.electronAPI.socialScrapeAfterLogin({
+    platform: state.socialPlatform,
+    keyword,
+    maxPages
+  });
+
+  if (result.success) {
+    addScrapeResults(result.emails);
+    document.getElementById('scrape-live-count').textContent = `${result.emails.length} email`;
+    showToast(`Ditemukan ${result.emails.length} email`, 'success');
+    setScrapeIdle(`${state.socialPlatform} selesai – ${result.emails.length} email`);
+  } else {
+    showToast('Gagal: ' + result.message, 'error');
+    setScrapeIdle('Gagal');
+  }
+}
+
+async function socialCloseBrowser() {
+  await window.electronAPI.socialCloseBrowser();
+  showToast('Browser ditutup', 'info');
+}
+
+function handleScrapeLead(lead) {
+  if (lead.emails && lead.emails.length > 0) {
+    addScrapeResults(lead.emails);
+    document.getElementById('scrape-live-count').textContent = `${state.scrapedEmails.length} email`;
+    addScrapeLog(`✓ ${lead.name || 'Bisnis'}: ${lead.emails.join(', ')}`);
+  }
+}
+
+async function scrapeMulti() {
+  const raw = document.getElementById('scrape-multi-urls').value.trim();
+  if (!raw) { showToast('Masukkan daftar URL', 'warning'); return; }
+  if (state.isScraping) { showToast('Scraping sedang berjalan', 'warning'); return; }
+
+  const urls = [...new Set(raw.split('\n').map(u => u.trim()).filter(u => u.length > 3))];
+  if (urls.length === 0) { showToast('Tidak ada URL yang valid', 'warning'); return; }
+
+  state.isScraping = true;
+  state.stopScrape = false;
+  document.getElementById('scrape-status-bar').classList.add('running');
+  addScrapeLog(`Scraping ${urls.length} URL...`);
+
+  for (let i = 0; i < urls.length; i++) {
+    if (state.stopScrape) break;
+    const url = urls[i];
+    document.getElementById('scrape-status-text').textContent = `[${i+1}/${urls.length}] ${url}`;
+    addScrapeLog(`[${i+1}/${urls.length}] Scraping: ${url}`);
+    const result = await window.electronAPI.scrapeWebsite(url);
+    if (result.success && result.emails.length > 0) {
+      addScrapeResults(result.emails);
+      document.getElementById('scrape-live-count').textContent = `${state.scrapedEmails.length} email`;
+      addScrapeLog(`  → ${result.emails.length} email ditemukan`);
+    }
+  }
+
+  showToast(`Selesai! Total ${state.scrapedEmails.length} email`, 'success');
+  setScrapeIdle(`Selesai Multi URL – ${state.scrapedEmails.length} email`);
 }
 
 function addScrapeLog(message) {
@@ -575,16 +747,102 @@ async function clearHistory() {
 
 // ===================== SETTINGS =====================
 function loadSettings() {
-  document.getElementById('setting-delay').value = state.settings.defaultDelay;
+  const delay = document.getElementById('setting-delay');
+  if (delay) delay.value = state.settings.defaultDelay;
+
+  // Sync theme UI dengan localStorage
+  const mode   = localStorage.getItem('themeMode')   || 'dark';
+  const accent = localStorage.getItem('accentColor') || 'purple';
+
+  document.getElementById('btn-mode-dark')?.classList.toggle('active', mode === 'dark');
+  document.getElementById('btn-mode-light')?.classList.toggle('active', mode === 'light');
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.accent === accent);
+  });
 }
 
 async function saveSettings() {
   const settings = {
     defaultDelay: parseInt(document.getElementById('setting-delay').value),
-    theme: document.getElementById('setting-theme').value
+    themeMode: localStorage.getItem('themeMode') || 'dark',
+    accentColor: localStorage.getItem('accentColor') || 'purple'
   };
   await window.electronAPI.saveSettings(settings);
   showToast('Pengaturan disimpan', 'success');
+}
+
+// ===================== LICENSE INFO =====================
+async function loadLicenseInfo() {
+  const card = document.getElementById('license-card');
+  if (!card) return;
+
+  // Cek status dari main process
+  const status = await window.electronAPI.checkActivationStatus();
+  const hwid   = await window.electronAPI.getHWID();
+
+  if (status.isActivated) {
+    // Baca saved license key (masking: EBPRO-????-????-XXXX hanya tampil 4 char terakhir)
+    const savedKey = status.licenseKey || '—';
+    const maskedKey = savedKey.length > 4
+      ? savedKey.replace(/.(?=.{4})/g, ch => ch === '-' ? '-' : '•')
+      : savedKey;
+
+    card.innerHTML = `
+      <div class="license-badge-row active">
+        <div class="license-badge active"><i class="fas fa-check-circle"></i></div>
+        <div class="license-badge-text">
+          <h4>Lisensi Aktif</h4>
+          <p>Aplikasi berlisensi dan siap digunakan</p>
+        </div>
+      </div>
+      <div class="license-info-row">
+        <span class="license-info-label"><i class="fas fa-key"></i> License Key</span>
+        <span class="license-info-value">${escHtml(maskedKey)}</span>
+      </div>
+      <div class="license-info-row">
+        <span class="license-info-label"><i class="fas fa-microchip"></i> ID Komputer (HWID)</span>
+        <span class="license-info-value mono" onclick="copyToClipboard('${escHtml(hwid)}')" title="Klik untuk salin">${escHtml(hwid.substring(0,24))}…</span>
+      </div>
+      <div class="license-info-row">
+        <span class="license-info-label"><i class="fas fa-lock"></i> Terikat ke Perangkat</span>
+        <span class="license-info-value" style="color:var(--success)">Ya (PC ini)</span>
+      </div>
+      <div class="license-actions">
+        <button class="btn-secondary" onclick="copyToClipboard('${escHtml(hwid)}')"><i class="fas fa-copy"></i> Salin HWID</button>
+        <button class="btn-danger-sm" onclick="deactivateLicense()" style="padding:8px 14px;font-size:13px;"><i class="fas fa-times"></i> Hapus Lisensi</button>
+      </div>
+    `;
+  } else {
+    card.innerHTML = `
+      <div class="license-badge-row inactive">
+        <div class="license-badge inactive"><i class="fas fa-times-circle"></i></div>
+        <div class="license-badge-text">
+          <h4>Lisensi Tidak Aktif</h4>
+          <p>Masukkan kode lisensi untuk mengaktifkan aplikasi</p>
+        </div>
+      </div>
+      <div class="license-info-row">
+        <span class="license-info-label"><i class="fas fa-microchip"></i> ID Komputer (HWID)</span>
+        <span class="license-info-value mono" onclick="copyToClipboard('${escHtml(hwid)}')" title="Klik untuk salin">${escHtml(hwid.substring(0,24))}…</span>
+      </div>
+      <div class="license-actions">
+        <button class="btn-secondary" onclick="copyToClipboard('${escHtml(hwid)}')"><i class="fas fa-copy"></i> Salin HWID</button>
+        <button class="btn-primary" onclick="showActivationScreen()" style="flex:1;"><i class="fas fa-key"></i> Masukkan Lisensi</button>
+      </div>
+    `;
+  }
+}
+
+async function deactivateLicense() {
+  const ok = confirm('Yakin ingin menghapus lisensi dari perangkat ini? Aplikasi akan meminta kode lisensi ulang.');
+  if (!ok) return;
+  await window.electronAPI.deactivateLicense();
+  showToast('Lisensi dihapus. Silakan restart aplikasi.', 'warning');
+  setTimeout(() => location.reload(), 2000);
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('Disalin ke clipboard!', 'info'));
 }
 
 // ===================== UTILS =====================

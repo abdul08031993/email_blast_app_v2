@@ -6,10 +6,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMaximize: () => ipcRenderer.send('window-maximize'),
   windowClose: () => ipcRenderer.send('window-close'),
 
-  // License & Activation (FITUR BARU)
+  // License & Activation
   verifyLicense: (licenseKey) => ipcRenderer.invoke('verify-license', licenseKey),
   checkActivationStatus: () => ipcRenderer.invoke('check-activation-status'),
   getHWID: () => ipcRenderer.invoke('get-hwid'),
+  deactivateLicense: () => ipcRenderer.invoke('deactivate-license'),
 
   // Accounts
   getAccounts: () => ipcRenderer.invoke('get-accounts'),
@@ -24,8 +25,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportEmails: (emails) => ipcRenderer.invoke('export-emails', emails),
 
   // Scraper
-  scrapeGoogleMaps: (keyword) => ipcRenderer.invoke('scrape-google-maps', keyword),
+  scrapeGoogleMaps: (opts) => ipcRenderer.invoke('scrape-google-maps', opts),
   scrapeWebsite: (url) => ipcRenderer.invoke('scrape-website', url),
+  socialOpenBrowser: (opts) => ipcRenderer.invoke('social-open-browser', opts),
+  socialScrapeAfterLogin: (opts) => ipcRenderer.invoke('social-scrape-after-login', opts),
+  socialStopScrape: () => ipcRenderer.invoke('social-stop-scrape'),
+  socialCloseBrowser: () => ipcRenderer.invoke('social-close-browser'),
 
   // Blast
   startBlast: (config) => ipcRenderer.invoke('start-blast', config),
@@ -42,8 +47,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Event listeners (Komunikasi dari Main ke Renderer)
   onBlastProgress: (cb) => ipcRenderer.on('blast-progress', (_, data) => cb(data)),
   onBlastComplete: (cb) => ipcRenderer.on('blast-complete', (_, data) => cb(data)),
-  onBlastStopped: (cb) => ipcRenderer.on('blast-stopped', (_, data) => cb(data)),
-  onScrapeProgress: (cb) => ipcRenderer.on('scrape-progress', (_, data) => cb(data)),
+  onBlastStopped:  (cb) => ipcRenderer.on('blast-stopped',  (_, data) => cb(data)),
+  onScrapeProgress:(cb) => ipcRenderer.on('scrape-progress', (_, data) => cb(data)),
+  onScrapeLead:    (cb) => ipcRenderer.on('scrape-lead',     (_, data) => cb(data)),
 
   // Cleanup
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
