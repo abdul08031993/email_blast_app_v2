@@ -10,73 +10,106 @@ permissions:
   contents: write
 
 jobs:
+  # ===================== BUILD WINDOWS =====================
   build-windows:
     name: 🪟 Windows Build
     runs-on: windows-latest
-    timeout-minutes: 60 # Ditambah jadi 60 menit agar tidak timeout
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
         with:
-          node-version: '24' # Update ke Node 24
+          node-version: '24'
           cache: 'npm'
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        # --ignore-scripts memaksa Puppeteer agar TIDAK download Chrome
+        run: npm install --ignore-scripts --no-audit --no-fund
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
-      - name: Build Windows
+
+      - name: Build Windows (.exe)
         run: npm run dist-win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload artifact Windows
+        uses: actions/upload-artifact@v4
         with:
           name: windows-installer
           path: dist/*.exe
+          retention-days: 7
 
+  # ===================== BUILD LINUX =====================
   build-linux:
     name: 🐧 Linux Build
     runs-on: ubuntu-latest
-    timeout-minutes: 60 # Ditambah jadi 60 menit
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
         with:
-          node-version: '24' # Update ke Node 24
+          node-version: '24'
           cache: 'npm'
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgbm1 libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2t64
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --ignore-scripts --no-audit --no-fund
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
-      - name: Build Linux
+
+      - name: Build Linux (.AppImage & .deb)
         run: npm run dist-linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload artifact Linux
+        uses: actions/upload-artifact@v4
         with:
-          name: linux-appimage
-          path: dist/*.AppImage
+          name: linux-binaries
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          retention-days: 7
 
-  # macOS kita matikan sementara agar kamu tidak menunggu 1 jam
-  # Kalau Windows & Linux sudah berhasil, baru kita aktifkan lagi
-  # build-macos: ... (dihapus/dikomentari dulu)
-
+  # ===================== CREATE GITHUB RELEASE =====================
   release:
     name: 🚀 Buat GitHub Release
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download semua artifact
+        uses: actions/download-artifact@v4
         with:
           path: release-files
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+
+      - name: Buat Release dan Upload File
+        uses: softprops/action-gh-release@v2
         with:
           name: "Email Blast Pro ${{ github.ref_name }}"
+          body: |
+            ## 📧 Email Blast Pro ${{ github.ref_name }}
+            
+            Berhasil di-build menggunakan Node.js 24.
+            
+            ### Installer:
+            - 🪟 **Windows**: `*-Setup.exe`
+            - 🐧 **Linux**: `*.AppImage` atau `*.deb`
           files: release-files/**/*
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
