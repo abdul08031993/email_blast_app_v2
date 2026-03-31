@@ -1,6 +1,6 @@
 {
   "name": "email-blast-pro",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Professional Email Blast Desktop Application",
   "main": "main.js",
   "author": {
@@ -16,7 +16,11 @@
     "dist-linux": "electron-builder --linux",
     "dist-all": "electron-builder -mwl"
   },
-  "keywords": ["email", "blast", "marketing"],
+  "keywords": [
+    "email",
+    "blast",
+    "marketing"
+  ],
   "dependencies": {
     "axios": "^1.6.0",
     "cheerio": "^1.0.0",
@@ -32,6 +36,7 @@
     "appId": "com.harmedia.emailblastpro",
     "productName": "Email Blast Pro",
     "copyright": "Copyright © 2026 Harmedia",
+    "asar": true,
     "directories": {
       "output": "dist"
     },
@@ -41,16 +46,18 @@
       "!.github/**",
       "!.git/**",
       "!**/*.md",
-      "!node_modules/puppeteer/.local-chromium/**",
-      "!node_modules/puppeteer/.local-browsers/**",
-      "!node_modules/electron/**",
-      "!node_modules/electron-builder/**"
+      "!**/node_modules/puppeteer/.local-chromium/**",
+      "!**/node_modules/puppeteer/.local-browsers/**",
+      "!**/node_modules/electron/**",
+      "!**/node_modules/electron-builder/**"
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico",
@@ -71,7 +78,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/icon.icns",
@@ -83,13 +93,22 @@
       "icon": "assets/icon.icns"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "assets/icon.png",
       "category": "Office",
       "maintainer": "Harmedia <admin@harmedia.id>"
     },
     "deb": {
-      "depends": ["libgbm1", "libnss3", "libatk-bridge2.0-0"]
+      "depends": [
+        "libgbm1",
+        "libnss3",
+        "libatk-bridge2.0-0",
+        "libgtk-3-0",
+        "libxss1"
+      ]
     }
   }
 }
