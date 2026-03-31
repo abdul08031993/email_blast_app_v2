@@ -3,11 +3,11 @@ name: Build & Release Email Blast Pro
 on:
   push:
     tags:
-      - 'v*'          # Trigger saat push tag seperti v1.0.0
-  workflow_dispatch:   # Bisa dijalankan manual dari tab Actions
+      - 'v*'          # Trigger otomatis saat push tag (contoh: v1.0.1)
+  workflow_dispatch:   # Tombol manual di tab Actions GitHub
 
 permissions:
-  contents: write
+  contents: write      # Izin untuk membuat halaman Release
 
 jobs:
   # ===================== BUILD WINDOWS =====================
@@ -46,7 +46,7 @@ jobs:
   build-macos:
     name: 🍎 macOS Build
     runs-on: macos-latest
-    timeout-minutes: 40  # Maksimal 40 menit agar tidak menyedot kuota
+    timeout-minutes: 40
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
@@ -90,6 +90,7 @@ jobs:
           cache: 'npm'
 
       - name: Install system dependencies
+        # FIX: Menggunakan libasound2t64 untuk Ubuntu 24.04 (Noble)
         run: |
           sudo apt-get update
           sudo apt-get install -y libgbm1 libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2t64
@@ -123,7 +124,6 @@ jobs:
     name: 🚀 Buat GitHub Release
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
-    # Release hanya dibuat jika dipicu oleh TAG (v1.0.0 dsb)
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
@@ -140,10 +140,7 @@ jobs:
           body: |
             ## 📧 Email Blast Pro ${{ github.ref_name }}
             
-            ### Download installer:
-            - 🪟 **Windows**: `*-Setup.exe`
-            - 🍎 **macOS**: `*.dmg`
-            - 🐧 **Linux**: `*.AppImage` atau `*.deb`
+            Silakan download installer sesuai OS kamu di bawah ini.
           files: release-files/**/*
           draft: false
           prerelease: false
